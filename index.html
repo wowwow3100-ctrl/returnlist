@@ -335,10 +335,16 @@ function initUI() {
   });
 }
 
-/* ===== 自動同步(kvdb.io)===== */
+/* ===== 自動同步(kvdb.io / jsonblob 雙軌)===== */
 var SYNC_BASE = "https://kvdb.io/";
+var JB_BASE = "https://jsonblob.com/api/jsonBlob/";
 var SYNC_B = "";
 try { SYNC_B = new URLSearchParams(location.search).get("b") || ""; } catch (e) {}
+var SYNC_MODE = "", KV_ID = "", JB_IDS = [];
+if (SYNC_B) {
+  if (SYNC_B.indexOf("J.") === 0) { SYNC_MODE = "jb"; JB_IDS = SYNC_B.slice(2).split("."); }
+  else { SYNC_MODE = "kv"; KV_ID = SYNC_B; }
+}
 
 function buildRepData() {
   if (!mem.store) return null;
@@ -374,9 +380,21 @@ function doSync() {
   var data = buildRepData();
   if (!data) return;
   setDot("send");
-  fetch(SYNC_BASE + SYNC_B + "/fangtai_" + encodeURIComponent(data.store), {
-    method: "PUT", body: JSON.stringify(data)
-  }).then(function(r){
+  var req;
+  if (SYNC_MODE === "jb") {
+    var id = JB_IDS[STORES.indexOf(data.store)];
+    if (!id) { setDot("fail"); return; }
+    req = fetch(JB_BASE + id, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data)
+    });
+  } else {
+    req = fetch(SYNC_BASE + KV_ID + "/fangtai_" + encodeURIComponent(data.store), {
+      method: "PUT", body: JSON.stringify(data)
+    });
+  }
+  req.then(function(r){
     if (!r.ok) throw 0;
     setDot("ok");
   }).catch(function(){ setDot("fail"); });

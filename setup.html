@@ -61,32 +61,82 @@
 
 <script>
 var KV = "https://kvdb.io/";
+var JB = "https://jsonblob.com/api/jsonBlob";
+var STORES = ["師大","光華","士林","板橋","中壢","新竹","宜蘭","文心","英才","嘉義","台南","建國","左營"];
 
 function setStatus(html) { document.getElementById("status").innerHTML = html; }
 
-function createChannel() {
-  document.getElementById("go").disabled = true;
-  setStatus("🟡 建立中…");
-  fetch(KV, { method: "POST", body: "" })
+function kvCreate(body, headers) {
+  return fetch(KV, { method: "POST", body: body, headers: headers || {} })
     .then(function (r) {
       if (!r.ok) throw new Error("HTTP " + r.status);
       return r.text();
     })
     .then(function (id) {
       id = (id || "").trim();
-      if (!/^[A-Za-z0-9]{8,}$/.test(id)) throw new Error("回傳格式不正確:" + id.slice(0, 50));
-      // 自我測試:寫一筆再讀回來
+      if (!/^[A-Za-z0-9]{8,}$/.test(id)) throw new Error("格式不符");
       return fetch(KV + id + "/selftest", { method: "PUT", body: "ok" })
-        .then(function (r) { if (!r.ok) throw new Error("寫入測試失敗"); return fetch(KV + id + "/selftest"); })
-        .then(function (r) { if (!r.ok) throw new Error("讀取測試失敗"); return r.text(); })
+        .then(function (r) { if (!r.ok) throw new Error("寫入失敗"); return fetch(KV + id + "/selftest"); })
+        .then(function (r) { if (!r.ok) throw new Error("讀取失敗"); return r.text(); })
         .then(function (t) {
-          if (t.trim() !== "ok") throw new Error("讀寫比對失敗");
-          showLinks(id);
+          if (t.trim() !== "ok") throw new Error("比對失敗");
+          return id;
         });
+    });
+}
+
+function jbCreateOne(store) {
+  return fetch(JB, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Accept": "application/json" },
+    body: JSON.stringify({ store: store, ts: 0 })
+  }).then(function (r) {
+    if (!(r.status === 200 || r.status === 201)) throw new Error("HTTP " + r.status);
+    var loc = r.headers.get("Location") || r.headers.get("location") || "";
+    var m = /jsonBlob\/([A-Za-z0-9-]+)/.exec(loc);
+    if (m) return m[1];
+    return r.json().then(function (j) {
+      if (j && j.id) return String(j.id);
+      throw new Error("拿不到編號");
+    });
+  });
+}
+
+function jbCreateAll() {
+  // 依序建立 13 個(每間門市一個),避免同時打太兇
+  var ids = [];
+  var p = Promise.resolve();
+  STORES.forEach(function (s, i) {
+    p = p.then(function () {
+      setStatus("🟡 建立中…(備用服務 " + (i + 1) + "/13)");
+      return jbCreateOne(s).then(function (id) { ids.push(id); });
+    });
+  });
+  return p.then(function () {
+    // 自我測試:讀第一個
+    return fetch(JB + "/" + ids[0]).then(function (r) {
+      if (!r.ok) throw new Error("讀取測試失敗");
+      return "J." + ids.join(".");
+    });
+  });
+}
+
+function createChannel() {
+  document.getElementById("go").disabled = true;
+  setStatus("🟡 建立中…(方式 1)");
+  kvCreate("", {})
+    .catch(function () {
+      setStatus("🟡 建立中…(方式 2)");
+      return kvCreate("email=fangtai-list@example.com", { "Content-Type": "application/x-www-form-urlencoded" });
     })
+    .catch(function () {
+      setStatus("🟡 方式 1、2 失敗,改用備用服務…");
+      return jbCreateAll();
+    })
+    .then(function (token) { showLinks(token); })
     .catch(function (e) {
       document.getElementById("go").disabled = false;
-      setStatus('<span class="err">❌ 建立失敗(' + (e && e.message ? e.message : "無法連上同步服務") + ')。</span><br>可能是公司網路擋了 kvdb.io——換用手機或家用網路開這頁再試;還是不行就告訴 Claude,換別的方案。');
+      setStatus('<span class="err">❌ 兩家服務都建立失敗(' + (e && e.message ? e.message : "連線問題") + ')。</span><br>請把這個畫面截圖給 Claude,改用更穩的方案(例如 Firebase 或你的 Railway)。');
     });
 }
 

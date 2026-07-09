@@ -296,10 +296,16 @@ function toast(msg) {
   toastTimer = setTimeout(function () { t.classList.remove("show"); }, 2600);
 }
 
-/* ===== 自動同步(kvdb.io)===== */
+/* ===== 自動同步(kvdb.io / jsonblob 雙軌)===== */
 var SYNC_BASE = "https://kvdb.io/";
+var JB_BASE = "https://jsonblob.com/api/jsonBlob/";
 var SYNC_B = "";
 try { SYNC_B = new URLSearchParams(location.search).get("b") || ""; } catch (e) {}
+var SYNC_MODE = "", KV_ID = "", JB_IDS = [];
+if (SYNC_B) {
+  if (SYNC_B.indexOf("J.") === 0) { SYNC_MODE = "jb"; JB_IDS = SYNC_B.slice(2).split("."); }
+  else { SYNC_MODE = "kv"; KV_ID = SYNC_B; }
+}
 
 function normalizeList(j) {
   // 兼容 kvdb 可能的三種回傳格式:[[k,v]...] / [{key,value}...] / {k:v}
@@ -327,6 +333,7 @@ function mergeRemote(pairs) {
     if (!r || !r.store) r = r || {};
     if (!r.store) r.store = k.slice(8);
     r.store = String(r.store).trim();
+    if (!r.time && !r.done) return;   // 初始占位資料,尚未真正回報
     if (!r.ts) r.ts = 0;
     if (!r.secs) r.secs = [];
     if (!r.undone) r.undone = [];
@@ -344,19 +351,35 @@ function mergeRemote(pairs) {
   return updated;
 }
 
-var pulling = false;
-function pull(manual) {
-  if (!SYNC_B || typeof fetch === "undefined" || pulling) return;
-  pulling = true;
-  setCloud("🟡 更新中…");
-  fetch(SYNC_BASE + SYNC_B + "/?values=true&format=json")
+function fetchAll() {
+  if (SYNC_MODE === "jb") {
+    return Promise.all(JB_IDS.map(function (id, i) {
+      return fetch(JB_BASE + id)
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .catch(function () { return null; });
+    })).then(function (arr) {
+      var pairs = [];
+      arr.forEach(function (v, i) { if (v) pairs.push(["fangtai_" + STORES[i], v]); });
+      return pairs;
+    });
+  }
+  return fetch(SYNC_BASE + KV_ID + "/?values=true&format=json")
     .then(function (r) {
       if (r.status === 404) return [];   // 尚無任何回報
       if (!r.ok) throw 0;
       return r.json();
     })
-    .then(function (j) {
-      var n = mergeRemote(normalizeList(j));
+    .then(normalizeList);
+}
+
+var pulling = false;
+function pull(manual) {
+  if (!SYNC_B || typeof fetch === "undefined" || pulling) return;
+  pulling = true;
+  setCloud("🟡 更新中…");
+  fetchAll()
+    .then(function (pairs) {
+      var n = mergeRemote(pairs);
       save();
       render();
       var now = new Date();
