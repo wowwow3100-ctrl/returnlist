@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>防颱應變確認清單</title>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    margin: 0; background: #f1f4f8; color: #1a2433;
+    font-family: system-ui, -apple-system, "PingFang TC", "Microsoft JhengHei", sans-serif;
+    font-size: 16px; line-height: 1.45;
+  }
+  .wrap { max-width: 520px; margin: 0 auto; padding: 0 12px 120px; }
+
+  .top {
+    position: sticky; top: 0; z-index: 20;
+    background: #0f2d52; color: #fff;
+    margin: 0 -12px; padding: 12px 16px 10px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.18);
+  }
+  .top h1 { margin: 0; font-size: 17px; font-weight: 700; }
+  .top .sub { font-size: 12.5px; opacity: .85; margin-top: 2px; }
+  .bar { background: rgba(255,255,255,.22); border-radius: 99px; height: 10px; margin-top: 8px; overflow: hidden; }
+  .bar i { display: block; height: 100%; width: 0; background: #34d399; border-radius: 99px; transition: width .25s; }
+  .pct { font-size: 12.5px; margin-top: 4px; display: flex; justify-content: space-between; }
+
+  .who { display: flex; gap: 8px; margin: 12px 0 4px; }
+  .who input {
+    flex: 1; min-width: 0; border: 1px solid #cdd7e4; border-radius: 10px;
+    padding: 10px 12px; font-size: 15px; background: #fff; color: inherit;
+  }
+  .who input:focus { outline: 2px solid #2563eb; border-color: transparent; }
+
+  .sec { margin-top: 14px; }
+  .sec-head {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 4px 6px; font-weight: 700; font-size: 15px;
+  }
+  .badge { color: #fff; border-radius: 8px; padding: 2px 9px; font-size: 13px; white-space: nowrap; }
+  .sec-count { margin-left: auto; font-size: 13px; color: #5b6b80; font-weight: 600; }
+  .sec-count.done { color: #059669; }
+
+  .item {
+    display: flex; align-items: flex-start; gap: 10px;
+    background: #fff; border: 1px solid #e2e8f2; border-radius: 12px;
+    padding: 12px; margin-bottom: 8px; cursor: pointer; user-select: none;
+  }
+  .item:active { background: #eef3fa; }
+  .box {
+    flex: none; width: 26px; height: 26px; margin-top: 1px;
+    border: 2px solid #9fb0c6; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 17px; color: #fff; transition: all .15s;
+  }
+  .item.on { background: #f0fdf6; border-color: #b7e4c7; }
+  .item.on .box { background: #10b981; border-color: #10b981; }
+  .item.on .txt { color: #6b7a8d; text-decoration: line-through; text-decoration-color: #9fb0c6; }
+  .role {
+    display: inline-block; font-size: 11.5px; font-weight: 700; color: #33475f;
+    background: #e8eef6; border-radius: 6px; padding: 1px 7px; margin-right: 6px; vertical-align: 1px;
+  }
+  .txt { font-size: 15px; }
+
+  .sms {
+    background: #fffbeb; border: 1px solid #f5dfa0; border-radius: 12px;
+    padding: 12px; margin: 4px 0 8px; font-size: 14px; color: #5c4a12;
+  }
+  .sms b { display: block; margin-bottom: 6px; color: #92650a; }
+  .btn {
+    display: block; width: 100%; border: 0; border-radius: 12px;
+    padding: 13px; font-size: 16px; font-weight: 700; cursor: pointer; margin-top: 10px;
+  }
+  .btn-amber { background: #f59e0b; color: #fff; }
+
+  .foot {
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 20;
+    background: #ffffffee; backdrop-filter: blur(6px);
+    border-top: 1px solid #dde5ef; padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+  }
+  .foot-in { max-width: 520px; margin: 0 auto; display: flex; gap: 10px; }
+  .btn-main { flex: 1; background: #0f2d52; color: #fff; margin: 0; }
+  .btn-main.alldone { background: #059669; }
+  .btn-reset { flex: none; width: 64px; background: #eef1f6; color: #7a2e2e; margin: 0; font-size: 14px; }
+
+  .toast {
+    position: fixed; left: 50%; bottom: 92px; transform: translateX(-50%) translateY(20px);
+    background: #1a2433; color: #fff; border-radius: 99px; padding: 10px 20px;
+    font-size: 14px; opacity: 0; pointer-events: none; transition: all .25s; z-index: 30;
+    max-width: 90%; text-align: center;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  .note { font-size: 12.5px; color: #77879c; text-align: center; margin-top: 16px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="top">
+    <h1>🌀 防颱應變確認清單</h1>
+    <div class="sub">請各店依時間點執行・完成請點選項目打勾</div>
+    <div class="bar"><i id="barFill"></i></div>
+    <div class="pct"><span id="pctText">已完成 0 / 0</span><span id="pctNum">0%</span></div>
+  </div>
+
+  <div class="who">
+    <input id="store" placeholder="門市名稱(必填)" autocomplete="off">
+    <input id="mgr" placeholder="店長姓名" autocomplete="off">
+  </div>
+
+  <div id="list"></div>
+
+  <div class="note">進度自動儲存在這支手機・全部完成後按下方「複製回報訊息」貼回 Teams 回報區店長</div>
+</div>
+
+<div class="foot">
+  <div class="foot-in">
+    <button class="btn btn-main" id="reportBtn" onclick="copyReport()">📋 複製回報訊息</button>
+    <button class="btn btn-reset" onclick="resetAll()">重設</button>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+var SMS = "親愛的華碩送修用戶:受到巴威颱風來襲,本縣市在7/10宣布停止上班。預計颱風假將會影響後續的料件運輸與原本與您預估的維修排程。我們深感抱歉,並會盡全力在颱風假結束後,優先處理您的報修事宜,感謝您的理解與耐心等待。";
+
+var DATA = [
+  { name: "一、即日起", sub: "對客告知", color: "#f59e0b", items: [
+    { role: "前場", text: "收、取件時主動告知用戶 7/10 公休、維修排程可能延後" },
+    { role: "維修/SHIP", text: "電聯用戶取件時一併告知公休資訊" },
+    { role: "行政", text: "接聽電話、回覆 CMS 時一併告知公休資訊" },
+    { role: "環境", text: "門口張貼颱風公告海報" }
+  ]},
+  { name: "二、政府宣布停班後", sub: "通知作業", color: "#7c3aed", sms: true, items: [
+    { role: "維修", text: "店長發送簡訊通知維修中用戶(範本見下方,可一鍵複製)" },
+    { role: "SHIP", text: "統一發送公休簡訊" },
+    { role: "系統", text: "啟用電話公休語音" },
+    { role: "系統", text: "Google 商家將 7/10 設為「臨時公休」" },
+    { role: "維修", text: "確認手持快修預約已關閉 7/10 時段" }
+  ]},
+  { name: "三、7/9(四)下班前", sub: "防颱總檢查", color: "#2563eb", items: [
+    { role: "前場", text: "關閉前場所有設備電源(電子看板、展示機、叫號機、導購電腦、印表機)" },
+    { role: "維修", text: "禁止燒機、所有維修設備斷電" },
+    { role: "維修", text: "店長將電腦帶回家(放假當天在家發送用戶簡訊用)" },
+    { role: "維修", text: "完修件盡量通知用戶今日取件;不便到店可提供寄送到府" },
+    { role: "維修", text: "當日到料當日完成更換" },
+    { role: "環境", text: "巡檢現場有無漏水;戶外立牌、旗幟收進室內" },
+    { role: "環境", text: "門窗全數確實上鎖" },
+    { role: "環境", text: "關閉電燈、冷氣及非必要電源" },
+    { role: "環境", text: "關閉飲水機電源與進水閥(立式、櫥下式都要)" },
+    { role: "系統", text: "確認電話公休提醒語音已備妥" },
+    { role: "系統", text: "確認 Google 商家帳號可登入、資訊可更新" }
+  ]},
+  { name: "四、復工當日", sub: "恢復營運", color: "#059669", items: [
+    { role: "環境", text: "檢查現場有無漏水、設備恢復供電正常" },
+    { role: "系統", text: "恢復電話語音、Google 營業時間" },
+    { role: "維修", text: "優先處理受延誤的維修案件,主動聯繫用戶" }
+  ]}
+];
+
+var KEY = "typhoon_checklist_2026_v2";
+var mem = { checks: {}, store: "", mgr: "" };
+
+function loadState() {
+  try {
+    var raw = localStorage.getItem(KEY);
+    if (raw) mem = JSON.parse(raw);
+  } catch (e) {}
+  if (!mem || typeof mem !== "object") mem = {};
+  if (!mem.checks) mem.checks = {};
+}
+function saveState() {
+  try { localStorage.setItem(KEY, JSON.stringify(mem)); } catch (e) {}
+}
+
+function total() { var n = 0; DATA.forEach(function(s){ n += s.items.length; }); return n; }
+function doneCount() {
+  var n = 0;
+  DATA.forEach(function(s, si){ s.items.forEach(function(it, ii){ if (mem.checks[si + "-" + ii]) n++; }); });
+  return n;
+}
+
+function render() {
+  var list = document.getElementById("list");
+  var html = "";
+  DATA.forEach(function(s, si) {
+    var done = s.items.filter(function(it, ii){ return mem.checks[si + "-" + ii]; }).length;
+    html += '<div class="sec">'
+      + '<div class="sec-head"><span class="badge" style="background:' + s.color + '">' + s.name + '</span>'
+      + '<span>' + s.sub + '</span>'
+      + '<span class="sec-count' + (done === s.items.length ? " done" : "") + '" id="sc' + si + '">'
+      + (done === s.items.length ? "✅ 完成" : done + "/" + s.items.length) + '</span></div>';
+    s.items.forEach(function(it, ii) {
+      var id = si + "-" + ii;
+      var on = !!mem.checks[id];
+      html += '<div class="item' + (on ? " on" : "") + '" id="it' + id + '" onclick="toggle(\'' + id + '\')">'
+        + '<div class="box">' + (on ? "✓" : "") + '</div>'
+        + '<div><span class="role">' + it.role + '</span><span class="txt">' + it.text + '</span></div></div>';
+    });
+    if (s.sms) {
+      html += '<div class="sms"><b>✉️ 用戶簡訊範本</b>' + SMS
+        + '<button class="btn btn-amber" onclick="copySms(event)">複製簡訊內容</button></div>';
+    }
+    html += '</div>';
+  });
+  list.innerHTML = html;
+  updateBar();
+}
+
+function toggle(id) {
+  mem.checks[id] = !mem.checks[id];
+  saveState();
+  render();
+}
+
+function updateBar() {
+  var t = total(), d = doneCount();
+  var p = t ? Math.round(d / t * 100) : 0;
+  document.getElementById("barFill").style.width = p + "%";
+  document.getElementById("pctText").textContent = "已完成 " + d + " / " + t;
+  document.getElementById("pctNum").textContent = p + "%";
+  var btn = document.getElementById("reportBtn");
+  if (d === t) { btn.classList.add("alldone"); btn.textContent = "✅ 全部完成!複製回報訊息"; }
+  else { btn.classList.remove("alldone"); btn.textContent = "📋 複製回報訊息"; }
+}
+
+function buildReport() {
+  var t = total(), d = doneCount();
+  var now = new Date();
+  var pad = function(n){ return (n < 10 ? "0" : "") + n; };
+  var lines = [];
+  lines.push("🌀【防颱檢查回報】");
+  lines.push("門市:" + (mem.store || "(未填)") + "|店長:" + (mem.mgr || "(未填)"));
+  lines.push("整體進度:" + d + "/" + t + "(" + Math.round(d / t * 100) + "%)");
+  lines.push("");
+  DATA.forEach(function(s, si) {
+    var undone = [];
+    s.items.forEach(function(it, ii){ if (!mem.checks[si + "-" + ii]) undone.push(it.text); });
+    if (undone.length === 0) {
+      lines.push("✅ " + s.name + " " + s.sub + ":全部完成");
+    } else {
+      lines.push("⏳ " + s.name + " " + s.sub + ":未完成 " + undone.length + " 項");
+      undone.forEach(function(u){ lines.push("　▢ " + u); });
+    }
+  });
+  lines.push("");
+  lines.push("回報時間:" + (now.getMonth() + 1) + "/" + now.getDate() + " " + pad(now.getHours()) + ":" + pad(now.getMinutes()));
+  return lines.join("\n");
+}
+
+function copyText(txt, okMsg) {
+  var done = function(){ showToast(okMsg); };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(txt).then(done, function(){ legacyCopy(txt); done(); });
+  } else { legacyCopy(txt); done(); }
+}
+function legacyCopy(txt) {
+  var ta = document.createElement("textarea");
+  ta.value = txt; ta.style.position = "fixed"; ta.style.opacity = "0";
+  document.body.appendChild(ta); ta.select();
+  try { document.execCommand("copy"); } catch (e) {}
+  document.body.removeChild(ta);
+}
+
+function copyReport() {
+  if (!mem.store) { showToast("請先在上方填寫門市名稱"); document.getElementById("store").focus(); return; }
+  copyText(buildReport(), "回報訊息已複製,請貼到 Teams");
+}
+function copySms(ev) {
+  ev.stopPropagation();
+  copyText(SMS, "簡訊內容已複製");
+}
+
+function resetAll() {
+  if (confirm("確定要清除所有打勾紀錄?")) {
+    mem.checks = {};
+    saveState();
+    render();
+  }
+}
+
+var toastTimer;
+function showToast(msg) {
+  var t = document.getElementById("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function(){ t.classList.remove("show"); }, 2200);
+}
+
+loadState();
+document.getElementById("store").value = mem.store || "";
+document.getElementById("mgr").value = mem.mgr || "";
+document.getElementById("store").addEventListener("input", function(){ mem.store = this.value.trim(); saveState(); });
+document.getElementById("mgr").addEventListener("input", function(){ mem.mgr = this.value.trim(); saveState(); });
+render();
+</script>
+</body>
+</html>
