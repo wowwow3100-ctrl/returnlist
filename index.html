@@ -27,11 +27,13 @@
   .pct { font-size: 12.5px; margin-top: 4px; display: flex; justify-content: space-between; }
 
   .who { display: flex; gap: 8px; margin: 12px 0 4px; }
-  .who input {
+  .who select, .who input {
     flex: 1; min-width: 0; border: 1px solid #cdd7e4; border-radius: 10px;
     padding: 10px 12px; font-size: 15px; background: #fff; color: inherit;
+    appearance: auto;
   }
-  .who input:focus { outline: 2px solid #2563eb; border-color: transparent; }
+  .who select:focus, .who input:focus { outline: 2px solid #2563eb; border-color: transparent; }
+  .who select.empty { color: #b02a2a; border-color: #e2a3a3; font-weight: 700; }
 
   .sec { margin-top: 14px; }
   .sec-head {
@@ -100,19 +102,21 @@
 
   <div class="top">
     <h1>🌀 防颱應變確認清單</h1>
-    <div class="sub">請各店依時間點執行・完成請點選項目打勾</div>
+    <div class="sub">請先選擇門市,再依時間點逐項打勾 <span id="syncDot"></span></div>
     <div class="bar"><i id="barFill"></i></div>
     <div class="pct"><span id="pctText">已完成 0 / 0</span><span id="pctNum">0%</span></div>
   </div>
 
   <div class="who">
-    <input id="store" placeholder="門市名稱(必填)" autocomplete="off">
+    <select id="store" class="empty">
+      <option value="">▼ 請選擇門市</option>
+    </select>
     <input id="mgr" placeholder="店長姓名" autocomplete="off">
   </div>
 
   <div id="list"></div>
 
-  <div class="note">進度自動儲存在這支手機・全部完成後按下方「複製回報訊息」貼回 Teams 回報區店長</div>
+  <div class="note">每間門市的進度分開儲存在這支手機・全部完成後按「複製回報訊息」貼回 Teams 回報區店長</div>
 </div>
 
 <div class="foot">
@@ -124,6 +128,8 @@
 <div class="toast" id="toast"></div>
 
 <script>
+var STORES = ["師大","光華","士林","板橋","中壢","新竹","宜蘭","文心","英才","嘉義","台南","建國","左營"];
+
 var SMS = "親愛的華碩送修用戶:受到巴威颱風來襲,本縣市在7/10宣布停止上班。預計颱風假將會影響後續的料件運輸與原本與您預估的維修排程。我們深感抱歉,並會盡全力在颱風假結束後,優先處理您的報修事宜,感謝您的理解與耐心等待。";
 
 var DATA = [
@@ -160,8 +166,8 @@ var DATA = [
   ]}
 ];
 
-var KEY = "typhoon_checklist_2026_v2";
-var mem = { checks: {}, store: "", mgr: "" };
+var KEY = "typhoon_checklist_2026_v3"; // 13-store edition
+var mem = { store: "", byStore: {} };
 
 function loadState() {
   try {
@@ -169,33 +175,41 @@ function loadState() {
     if (raw) mem = JSON.parse(raw);
   } catch (e) {}
   if (!mem || typeof mem !== "object") mem = {};
-  if (!mem.checks) mem.checks = {};
+  if (!mem.byStore) mem.byStore = {};
+  if (!mem.store) mem.store = "";
 }
 function saveState() {
   try { localStorage.setItem(KEY, JSON.stringify(mem)); } catch (e) {}
+  scheduleSync();
+}
+function cur() {
+  if (!mem.store) return { checks: {}, mgr: "" };
+  if (!mem.byStore[mem.store]) mem.byStore[mem.store] = { checks: {}, mgr: "" };
+  return mem.byStore[mem.store];
 }
 
 function total() { var n = 0; DATA.forEach(function(s){ n += s.items.length; }); return n; }
 function doneCount() {
-  var n = 0;
-  DATA.forEach(function(s, si){ s.items.forEach(function(it, ii){ if (mem.checks[si + "-" + ii]) n++; }); });
+  var n = 0, c = cur().checks;
+  DATA.forEach(function(s, si){ s.items.forEach(function(it, ii){ if (c[si + "-" + ii]) n++; }); });
   return n;
 }
 
 function render() {
   var list = document.getElementById("list");
+  var c = cur().checks;
   var html = "";
   DATA.forEach(function(s, si) {
-    var done = s.items.filter(function(it, ii){ return mem.checks[si + "-" + ii]; }).length;
+    var done = s.items.filter(function(it, ii){ return c[si + "-" + ii]; }).length;
     html += '<div class="sec">'
       + '<div class="sec-head"><span class="badge" style="background:' + s.color + '">' + s.name + '</span>'
       + '<span>' + s.sub + '</span>'
-      + '<span class="sec-count' + (done === s.items.length ? " done" : "") + '" id="sc' + si + '">'
+      + '<span class="sec-count' + (done === s.items.length ? " done" : "") + '">'
       + (done === s.items.length ? "✅ 完成" : done + "/" + s.items.length) + '</span></div>';
     s.items.forEach(function(it, ii) {
       var id = si + "-" + ii;
-      var on = !!mem.checks[id];
-      html += '<div class="item' + (on ? " on" : "") + '" id="it' + id + '" onclick="toggle(\'' + id + '\')">'
+      var on = !!c[id];
+      html += '<div class="item' + (on ? " on" : "") + '" onclick="toggle(\'' + id + '\')">'
         + '<div class="box">' + (on ? "✓" : "") + '</div>'
         + '<div><span class="role">' + it.role + '</span><span class="txt">' + it.text + '</span></div></div>';
     });
@@ -210,7 +224,12 @@ function render() {
 }
 
 function toggle(id) {
-  mem.checks[id] = !mem.checks[id];
+  if (!mem.store) {
+    showToast("請先在上方選擇門市");
+    document.getElementById("store").focus();
+    return;
+  }
+  cur().checks[id] = !cur().checks[id];
   saveState();
   render();
 }
@@ -219,10 +238,10 @@ function updateBar() {
   var t = total(), d = doneCount();
   var p = t ? Math.round(d / t * 100) : 0;
   document.getElementById("barFill").style.width = p + "%";
-  document.getElementById("pctText").textContent = "已完成 " + d + " / " + t;
+  document.getElementById("pctText").textContent = (mem.store ? mem.store + "・" : "") + "已完成 " + d + " / " + t;
   document.getElementById("pctNum").textContent = p + "%";
   var btn = document.getElementById("reportBtn");
-  if (d === t) { btn.classList.add("alldone"); btn.textContent = "✅ 全部完成!複製回報訊息"; }
+  if (mem.store && d === t) { btn.classList.add("alldone"); btn.textContent = "✅ 全部完成!複製回報訊息"; }
   else { btn.classList.remove("alldone"); btn.textContent = "📋 複製回報訊息"; }
 }
 
@@ -232,12 +251,12 @@ function buildReport() {
   var pad = function(n){ return (n < 10 ? "0" : "") + n; };
   var lines = [];
   lines.push("🌀【防颱檢查回報】");
-  lines.push("門市:" + (mem.store || "(未填)") + "|店長:" + (mem.mgr || "(未填)"));
+  lines.push("門市:" + mem.store + "|店長:" + (cur().mgr || "(未填)"));
   lines.push("整體進度:" + d + "/" + t + "(" + Math.round(d / t * 100) + "%)");
   lines.push("");
   DATA.forEach(function(s, si) {
     var undone = [];
-    s.items.forEach(function(it, ii){ if (!mem.checks[si + "-" + ii]) undone.push(it.text); });
+    s.items.forEach(function(it, ii){ if (!cur().checks[si + "-" + ii]) undone.push(it.text); });
     if (undone.length === 0) {
       lines.push("✅ " + s.name + " " + s.sub + ":全部完成");
     } else {
@@ -265,7 +284,7 @@ function legacyCopy(txt) {
 }
 
 function copyReport() {
-  if (!mem.store) { showToast("請先在上方填寫門市名稱"); document.getElementById("store").focus(); return; }
+  if (!mem.store) { showToast("請先在上方選擇門市"); document.getElementById("store").focus(); return; }
   copyText(buildReport(), "回報訊息已複製,請貼到 Teams");
 }
 function copySms(ev) {
@@ -274,8 +293,9 @@ function copySms(ev) {
 }
 
 function resetAll() {
-  if (confirm("確定要清除所有打勾紀錄?")) {
-    mem.checks = {};
+  if (!mem.store) { showToast("請先選擇門市"); return; }
+  if (confirm("確定要清除「" + mem.store + "」的所有打勾紀錄?")) {
+    mem.byStore[mem.store] = { checks: {}, mgr: cur().mgr };
     saveState();
     render();
   }
@@ -290,12 +310,95 @@ function showToast(msg) {
   toastTimer = setTimeout(function(){ t.classList.remove("show"); }, 2200);
 }
 
+function initUI() {
+  var sel = document.getElementById("store");
+  STORES.forEach(function(s){
+    var o = document.createElement("option");
+    o.value = s; o.textContent = s;
+    sel.appendChild(o);
+  });
+  sel.value = mem.store || "";
+  sel.className = mem.store ? "" : "empty";
+  document.getElementById("mgr").value = cur().mgr || "";
+
+  sel.addEventListener("change", function(){
+    mem.store = this.value;
+    this.className = mem.store ? "" : "empty";
+    document.getElementById("mgr").value = cur().mgr || "";
+    saveState();
+    render();
+  });
+  document.getElementById("mgr").addEventListener("input", function(){
+    if (!mem.store) { showToast("請先選擇門市"); this.value = ""; return; }
+    cur().mgr = this.value.trim();
+    saveState();
+  });
+}
+
+/* ===== 自動同步(kvdb.io)===== */
+var SYNC_BASE = "https://kvdb.io/";
+var SYNC_B = "";
+try { SYNC_B = new URLSearchParams(location.search).get("b") || ""; } catch (e) {}
+
+function buildRepData() {
+  if (!mem.store) return null;
+  var t = total(), d = doneCount();
+  var now = new Date();
+  var pad = function(n){ return (n < 10 ? "0" : "") + n; };
+  var secs = [], undone = [];
+  DATA.forEach(function(s, si) {
+    var ud = [];
+    s.items.forEach(function(it, ii){ if (!cur().checks[si + "-" + ii]) ud.push(it.text); });
+    if (ud.length === 0) secs.push("✅ " + s.name + " " + s.sub + ":全部完成");
+    else {
+      secs.push("⏳ " + s.name + " " + s.sub + ":未完成 " + ud.length + " 項");
+      ud.forEach(function(u){ undone.push(u); });
+    }
+  });
+  return {
+    store: mem.store, mgr: cur().mgr || "", done: d, total: t,
+    pct: t ? Math.round(d / t * 100) : 0,
+    time: (now.getMonth() + 1) + "/" + now.getDate() + " " + pad(now.getHours()) + ":" + pad(now.getMinutes()),
+    ts: Date.now(), secs: secs, undone: undone
+  };
+}
+
+var syncTimer = null;
+function scheduleSync() {
+  if (!SYNC_B || !mem.store || typeof fetch === "undefined") { setDot("off"); return; }
+  setDot("wait");
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(doSync, 1200);
+}
+function doSync() {
+  var data = buildRepData();
+  if (!data) return;
+  setDot("send");
+  fetch(SYNC_BASE + SYNC_B + "/fangtai_" + encodeURIComponent(data.store), {
+    method: "PUT", body: JSON.stringify(data)
+  }).then(function(r){
+    if (!r.ok) throw 0;
+    setDot("ok");
+  }).catch(function(){ setDot("fail"); });
+}
+function setDot(st) {
+  var el = document.getElementById("syncDot");
+  if (!el) return;
+  var now = new Date();
+  var pad = function(n){ return (n < 10 ? "0" : "") + n; };
+  var hm = pad(now.getHours()) + ":" + pad(now.getMinutes());
+  if (st === "ok") el.textContent = "・🟢 已自動回報 " + hm;
+  else if (st === "send" || st === "wait") el.textContent = "・🟡 回報中…";
+  else if (st === "fail") el.textContent = "・🔴 回報失敗(打勾已存在手機,下次打勾會再試)";
+  else if (st === "idle") el.textContent = "・🔵 自動回報已開啟";
+  else el.textContent = "・⚪ 未啟用自動回報";
+}
+
 loadState();
-document.getElementById("store").value = mem.store || "";
-document.getElementById("mgr").value = mem.mgr || "";
-document.getElementById("store").addEventListener("input", function(){ mem.store = this.value.trim(); saveState(); });
-document.getElementById("mgr").addEventListener("input", function(){ mem.mgr = this.value.trim(); saveState(); });
+initUI();
 render();
+if (SYNC_B && mem.store) scheduleSync();
+else setDot(SYNC_B ? "idle" : "off");
 </script>
 </body>
 </html>

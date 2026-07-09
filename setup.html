@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>防颱清單|同步設定(區店長用)</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: #f1f4f8; color: #1a2433;
+    font-family: system-ui, -apple-system, "PingFang TC", "Microsoft JhengHei", sans-serif;
+    font-size: 16px; line-height: 1.6;
+  }
+  .wrap { max-width: 640px; margin: 0 auto; padding: 24px 16px 60px; }
+  h1 { font-size: 20px; }
+  .card { background: #fff; border: 1px solid #dde5ef; border-radius: 14px; padding: 18px; margin-top: 14px; }
+  .btn {
+    border: 0; border-radius: 12px; padding: 14px 22px;
+    font-size: 17px; font-weight: 700; cursor: pointer; background: #0f2d52; color: #fff; width: 100%;
+  }
+  .btn-sm { width: auto; padding: 9px 16px; font-size: 14px; background: #059669; margin-top: 8px; }
+  .link {
+    background: #f4f7fb; border: 1px solid #dbe4ef; border-radius: 10px;
+    padding: 10px 12px; font-size: 13.5px; word-break: break-all; margin-top: 8px;
+    font-family: ui-monospace, Consolas, monospace;
+  }
+  .ok { color: #059669; font-weight: 700; }
+  .err { color: #b02a2a; font-weight: 700; }
+  .hint { font-size: 13.5px; color: #6b7a8d; }
+  #result { display: none; }
+  .toast {
+    position: fixed; left: 50%; bottom: 30px; transform: translateX(-50%);
+    background: #1a2433; color: #fff; border-radius: 99px; padding: 10px 20px;
+    font-size: 14px; opacity: 0; pointer-events: none; transition: all .25s; z-index: 30;
+  }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🌀 防颱清單|自動回報設定</h1>
+  <div class="hint">這頁只有你(區店長)需要用,每次颱風按一次,產生這一次的專用連結。</div>
+
+  <div class="card">
+    <button class="btn" id="go" onclick="createChannel()">① 建立本次颱風的同步頻道</button>
+    <div id="status" class="hint" style="margin-top:10px"></div>
+  </div>
+
+  <div class="card" id="result">
+    <b>② 店長版連結(整段貼到 Teams 群組)</b>
+    <div class="link" id="linkStore"></div>
+    <button class="btn btn-sm" onclick="copyEl('linkStore','店長版連結已複製')">複製店長版連結</button>
+    <div style="margin-top:18px"><b>③ 彙整版連結(你自己用,存到我的最愛)</b></div>
+    <div class="link" id="linkAdmin"></div>
+    <button class="btn btn-sm" onclick="copyEl('linkAdmin','彙整版連結已複製')">複製彙整版連結</button>
+    <div class="hint" style="margin-top:14px">說明:店長用「店長版連結」打勾,約 1~2 秒自動回報;你開「彙整版連結」每 25 秒自動更新百分比。下次颱風再回來這頁重新按一次,舊資料自動歸零(連結會換新的)。</div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+var KV = "https://kvdb.io/";
+
+function setStatus(html) { document.getElementById("status").innerHTML = html; }
+
+function createChannel() {
+  document.getElementById("go").disabled = true;
+  setStatus("🟡 建立中…");
+  fetch(KV, { method: "POST", body: "" })
+    .then(function (r) {
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      return r.text();
+    })
+    .then(function (id) {
+      id = (id || "").trim();
+      if (!/^[A-Za-z0-9]{8,}$/.test(id)) throw new Error("回傳格式不正確:" + id.slice(0, 50));
+      // 自我測試:寫一筆再讀回來
+      return fetch(KV + id + "/selftest", { method: "PUT", body: "ok" })
+        .then(function (r) { if (!r.ok) throw new Error("寫入測試失敗"); return fetch(KV + id + "/selftest"); })
+        .then(function (r) { if (!r.ok) throw new Error("讀取測試失敗"); return r.text(); })
+        .then(function (t) {
+          if (t.trim() !== "ok") throw new Error("讀寫比對失敗");
+          showLinks(id);
+        });
+    })
+    .catch(function (e) {
+      document.getElementById("go").disabled = false;
+      setStatus('<span class="err">❌ 建立失敗(' + (e && e.message ? e.message : "無法連上同步服務") + ')。</span><br>可能是公司網路擋了 kvdb.io——換用手機或家用網路開這頁再試;還是不行就告訴 Claude,換別的方案。');
+    });
+}
+
+function showLinks(id) {
+  var base = location.href.replace(/setup\.html.*$/, "");
+  document.getElementById("linkStore").textContent = base + "?b=" + id;
+  document.getElementById("linkAdmin").textContent = base + "admin.html?b=" + id;
+  document.getElementById("result").style.display = "block";
+  setStatus('<span class="ok">✅ 頻道建立成功!請複製下面兩條連結。</span>');
+}
+
+function copyEl(elId, msg) {
+  var txt = document.getElementById(elId).textContent;
+  var done = function () { toast(msg); };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(txt).then(done, function () { legacy(txt); done(); });
+  } else { legacy(txt); done(); }
+}
+function legacy(txt) {
+  var ta = document.createElement("textarea");
+  ta.value = txt; ta.style.position = "fixed"; ta.style.opacity = "0";
+  document.body.appendChild(ta); ta.select();
+  try { document.execCommand("copy"); } catch (e) {}
+  document.body.removeChild(ta);
+}
+var tt;
+function toast(m) {
+  var t = document.getElementById("toast");
+  t.textContent = m; t.classList.add("show");
+  clearTimeout(tt); tt = setTimeout(function(){ t.classList.remove("show"); }, 2200);
+}
+</script>
+</body>
+</html>
