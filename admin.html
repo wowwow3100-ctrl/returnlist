@@ -296,14 +296,20 @@ function toast(msg) {
   toastTimer = setTimeout(function () { t.classList.remove("show"); }, 2600);
 }
 
-/* ===== 自動同步(kvdb.io / jsonblob 雙軌)===== */
+/* ===== 自動同步(Railway / kvdb / jsonblob 三軌)===== */
+var RW_BASE = "https://web-production-e1521.up.railway.app/fangtai";
 var SYNC_BASE = "https://kvdb.io/";
 var JB_BASE = "https://jsonblob.com/api/jsonBlob/";
 var SYNC_B = "";
 try { SYNC_B = new URLSearchParams(location.search).get("b") || ""; } catch (e) {}
-var SYNC_MODE = "", KV_ID = "", JB_IDS = [];
+var SYNC_MODE = "", KV_ID = "", JB_IDS = [], RW_CH = "";
 if (SYNC_B) {
-  if (SYNC_B.indexOf("J.") === 0) { SYNC_MODE = "jb"; JB_IDS = SYNC_B.slice(2).split("."); }
+  if (SYNC_B.indexOf("W.") === 0) {
+    var _wp = SYNC_B.slice(2).split("~");
+    if (_wp.length === 2 && _wp[1]) { SYNC_MODE = "rw"; RW_CH = _wp[0]; RW_BASE = "https://" + _wp[1] + "/fangtai"; }
+  }
+  else if (SYNC_B.indexOf("R.") === 0) { SYNC_MODE = "rw"; RW_CH = SYNC_B.slice(2); }
+  else if (SYNC_B.indexOf("J.") === 0) { SYNC_MODE = "jb"; JB_IDS = SYNC_B.slice(2).split("."); }
   else { SYNC_MODE = "kv"; KV_ID = SYNC_B; }
 }
 
@@ -352,6 +358,18 @@ function mergeRemote(pairs) {
 }
 
 function fetchAll() {
+  if (SYNC_MODE === "rw") {
+    return fetch(RW_BASE + "/reports/" + encodeURIComponent(RW_CH))
+      .then(function (r) {
+        if (!r.ok) throw 0;
+        return r.json();
+      })
+      .then(function (j) {
+        var pairs = [];
+        Object.keys(j || {}).forEach(function (k) { pairs.push(["fangtai_" + k, j[k]]); });
+        return pairs;
+      });
+  }
   if (SYNC_MODE === "jb") {
     return Promise.all(JB_IDS.map(function (id, i) {
       return fetch(JB_BASE + id)

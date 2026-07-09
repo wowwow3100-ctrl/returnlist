@@ -43,6 +43,8 @@
   <div class="hint">這頁只有你(區店長)需要用,每次颱風按一次,產生這一次的專用連結。</div>
 
   <div class="card">
+    <div class="hint" style="margin-bottom:6px">貼上你的 fangtai-api 網址(Railway 產生的那條,例:https://fangtai-api-production-xxxx.up.railway.app)</div>
+    <input id="apiHost" style="width:100%;border:1px solid #cdd7e4;border-radius:10px;padding:10px 12px;font-size:14px;margin-bottom:10px" placeholder="https://…up.railway.app" autocomplete="off">
     <button class="btn" id="go" onclick="createChannel()">① 建立本次颱風的同步頻道</button>
     <div id="status" class="hint" style="margin-top:10px"></div>
   </div>
@@ -63,6 +65,31 @@
 var KV = "https://kvdb.io/";
 var JB = "https://jsonblob.com/api/jsonBlob";
 var STORES = ["師大","光華","士林","板橋","中壢","新竹","宜蘭","文心","英才","嘉義","台南","建國","左營"];
+
+function cleanHost(v) {
+  v = (v || "").trim().replace(/^https?:\/\//i, "").split("/")[0];
+  return v;
+}
+
+function wCreate(host) {
+  var base = "https://" + host + "/fangtai";
+  return fetch(base + "/ping")
+    .then(function (r) { if (!r.ok) throw new Error("API 沒回應(HTTP " + r.status + "),確認網址與部署"); return r.json(); })
+    .then(function () {
+      return fetch(base + "/report/_selftest/" + encodeURIComponent("測試"), {
+        method: "PUT", body: JSON.stringify({ t: Date.now() })
+      });
+    })
+    .then(function (r) { if (!r.ok) throw new Error("寫入測試失敗"); return fetch(base + "/reports/_selftest"); })
+    .then(function (r) { if (!r.ok) throw new Error("讀取測試失敗"); return r.json(); })
+    .then(function (j) {
+      if (!j || !j["測試"]) throw new Error("讀寫比對失敗");
+      var d = new Date();
+      var pad = function (n) { return (n < 10 ? "0" : "") + n; };
+      var ch = "c" + d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate()) + pad(d.getHours()) + pad(d.getMinutes()) + Math.floor(Math.random() * 90 + 10);
+      return "W." + ch + "~" + host;
+    });
+}
 
 function setStatus(html) { document.getElementById("status").innerHTML = html; }
 
@@ -122,23 +149,25 @@ function jbCreateAll() {
 }
 
 function createChannel() {
+  var host = cleanHost(document.getElementById("apiHost").value);
+  if (!host) {
+    setStatus('<span class="err">請先在上面貼你的 fangtai-api 網址</span>');
+    return;
+  }
+  try { localStorage.setItem("fangtai_api_host", host); } catch (e) {}
   document.getElementById("go").disabled = true;
-  setStatus("🟡 建立中…(方式 1)");
-  kvCreate("", {})
-    .catch(function () {
-      setStatus("🟡 建立中…(方式 2)");
-      return kvCreate("email=fangtai-list@example.com", { "Content-Type": "application/x-www-form-urlencoded" });
-    })
-    .catch(function () {
-      setStatus("🟡 方式 1、2 失敗,改用備用服務…");
-      return jbCreateAll();
-    })
+  setStatus("🟡 建立中…(連接你的 fangtai-api)");
+  wCreate(host)
     .then(function (token) { showLinks(token); })
     .catch(function (e) {
       document.getElementById("go").disabled = false;
-      setStatus('<span class="err">❌ 兩家服務都建立失敗(' + (e && e.message ? e.message : "連線問題") + ')。</span><br>請把這個畫面截圖給 Claude,改用更穩的方案(例如 Firebase 或你的 Railway)。');
+      setStatus('<span class="err">❌ 建立失敗:' + ((e && e.message) || "連線問題") + '。</span><br>確認:1) Railway 那個新服務部署完成(綠色)2) 網址貼的是 fangtai-api 的,不是其他服務的 3) 用瀏覽器直接開那個網址,應顯示 {"fangtai_api":"ok"}。都對還是失敗就截圖給 Claude。');
     });
 }
+try {
+  var _h = localStorage.getItem("fangtai_api_host");
+  if (_h) document.getElementById("apiHost") && (document.getElementById("apiHost").value = _h);
+} catch (e) {}
 
 function showLinks(id) {
   var base = location.href.replace(/setup\.html.*$/, "");
