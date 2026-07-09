@@ -111,18 +111,16 @@
     <select id="store" class="empty">
       <option value="">▼ 請選擇門市</option>
     </select>
-    <input id="mgr" placeholder="店長姓名" autocomplete="off">
   </div>
 
   <div id="list"></div>
 
-  <div class="note">每間門市的進度分開儲存在這支手機・全部完成後按「複製回報訊息」貼回 Teams 回報區店長</div>
+  <div class="note">每間門市的進度分開儲存在這支手機・打勾後會自動回報區店長,不必再傳訊息</div>
 </div>
 
 <div class="foot">
   <div class="foot-in">
-    <button class="btn btn-main" id="reportBtn" onclick="copyReport()">📋 複製回報訊息</button>
-    <button class="btn btn-reset" onclick="resetAll()">重設</button>
+    <button class="btn btn-reset" style="flex:1;width:auto" onclick="resetAll()">重設(清除本店全部打勾)</button>
   </div>
 </div>
 <div class="toast" id="toast"></div>
@@ -240,33 +238,6 @@ function updateBar() {
   document.getElementById("barFill").style.width = p + "%";
   document.getElementById("pctText").textContent = (mem.store ? mem.store + "・" : "") + "已完成 " + d + " / " + t;
   document.getElementById("pctNum").textContent = p + "%";
-  var btn = document.getElementById("reportBtn");
-  if (mem.store && d === t) { btn.classList.add("alldone"); btn.textContent = "✅ 全部完成!複製回報訊息"; }
-  else { btn.classList.remove("alldone"); btn.textContent = "📋 複製回報訊息"; }
-}
-
-function buildReport() {
-  var t = total(), d = doneCount();
-  var now = new Date();
-  var pad = function(n){ return (n < 10 ? "0" : "") + n; };
-  var lines = [];
-  lines.push("🌀【防颱檢查回報】");
-  lines.push("門市:" + mem.store + "|店長:" + (cur().mgr || "(未填)"));
-  lines.push("整體進度:" + d + "/" + t + "(" + Math.round(d / t * 100) + "%)");
-  lines.push("");
-  DATA.forEach(function(s, si) {
-    var undone = [];
-    s.items.forEach(function(it, ii){ if (!cur().checks[si + "-" + ii]) undone.push(it.text); });
-    if (undone.length === 0) {
-      lines.push("✅ " + s.name + " " + s.sub + ":全部完成");
-    } else {
-      lines.push("⏳ " + s.name + " " + s.sub + ":未完成 " + undone.length + " 項");
-      undone.forEach(function(u){ lines.push("　▢ " + u); });
-    }
-  });
-  lines.push("");
-  lines.push("回報時間:" + (now.getMonth() + 1) + "/" + now.getDate() + " " + pad(now.getHours()) + ":" + pad(now.getMinutes()));
-  return lines.join("\n");
 }
 
 function copyText(txt, okMsg) {
@@ -283,10 +254,6 @@ function legacyCopy(txt) {
   document.body.removeChild(ta);
 }
 
-function copyReport() {
-  if (!mem.store) { showToast("請先在上方選擇門市"); document.getElementById("store").focus(); return; }
-  copyText(buildReport(), "回報訊息已複製,請貼到 Teams");
-}
 function copySms(ev) {
   ev.stopPropagation();
   copyText(SMS, "簡訊內容已複製");
@@ -319,19 +286,12 @@ function initUI() {
   });
   sel.value = mem.store || "";
   sel.className = mem.store ? "" : "empty";
-  document.getElementById("mgr").value = cur().mgr || "";
 
   sel.addEventListener("change", function(){
     mem.store = this.value;
     this.className = mem.store ? "" : "empty";
-    document.getElementById("mgr").value = cur().mgr || "";
     saveState();
     render();
-  });
-  document.getElementById("mgr").addEventListener("input", function(){
-    if (!mem.store) { showToast("請先選擇門市"); this.value = ""; return; }
-    cur().mgr = this.value.trim();
-    saveState();
   });
 }
 

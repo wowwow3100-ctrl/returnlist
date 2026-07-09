@@ -99,12 +99,8 @@
   </div>
 
   <div class="paste">
-    <b>📥 貼上店長的回報訊息</b>
-    <div class="hint">到 Teams 把店長回報的訊息複製過來(一次貼多間、多則都可以;同一間門市重複回報,以「回報時間」最新的為準)</div>
-    <textarea id="inbox" placeholder="把回報訊息貼在這裡…&#10;🌀【防颱檢查回報】&#10;門市:光華|店長:王小明&#10;整體進度:23/23(100%)…"></textarea>
-    <div class="btnrow">
+    <div class="btnrow" style="margin-top:0">
       <button class="btn btn-blue" id="pullBtn" onclick="pull(true)" style="display:none">☁️ 立即更新</button>
-      <button class="btn btn-blue" onclick="ingest()">解析加入</button>
       <button class="btn btn-green" onclick="copySummary()">📋 複製彙整摘要</button>
       <button class="btn btn-gray" onclick="clearAll()">清空重來</button>
     </div>
@@ -130,67 +126,6 @@ function load() {
 }
 function save() {
   try { localStorage.setItem(KEY, JSON.stringify(db)); } catch (e) {}
-}
-
-function parseTime(str) {
-  // "7/9 18:02" -> timestamp (今年)
-  var m = /(\d{1,2})\/(\d{1,2})\s+(\d{1,2}):(\d{2})/.exec(str || "");
-  if (!m) return Date.now();
-  var now = new Date();
-  return new Date(now.getFullYear(), +m[1] - 1, +m[2], +m[3], +m[4]).getTime();
-}
-
-function parseReports(text) {
-  var out = [];
-  var blocks = text.split(/(?=【防颱檢查回報】)/);
-  blocks.forEach(function (b) {
-    if (b.indexOf("【防颱檢查回報】") === -1) return;
-    var store = (/門市[::]\s*([^|｜\n]+)/.exec(b) || [])[1];
-    if (!store) return;
-    store = store.trim();
-    var mgr = ((/店長[::]\s*([^\n]+)/.exec(b) || [])[1] || "").trim();
-    var pm = /整體進度[::]\s*(\d+)\s*\/\s*(\d+)/.exec(b);
-    var done = pm ? +pm[1] : 0, total = pm ? +pm[2] : 0;
-    var timeStr = ((/回報時間[::]\s*([^\n]+)/.exec(b) || [])[1] || "").trim();
-    var secs = [], undone = [];
-    b.split("\n").forEach(function (ln) {
-      ln = ln.trim();
-      if (/^[✅⏳]/.test(ln)) secs.push(ln);
-      if (/^[　\s]*▢/.test(ln)) undone.push(ln.replace(/^[　\s]*▢\s*/, ""));
-    });
-    out.push({
-      store: store, mgr: mgr, done: done, total: total,
-      pct: total ? Math.round(done / total * 100) : 0,
-      time: timeStr, ts: parseTime(timeStr), secs: secs, undone: undone
-    });
-  });
-  return out;
-}
-
-function ingest() {
-  var txt = document.getElementById("inbox").value;
-  if (!txt.trim()) { toast("先把回報訊息貼進來"); return; }
-  var list = parseReports(txt);
-  if (!list.length) { toast("沒認出回報格式,確認是從清單頁複製的訊息"); return; }
-  var added = 0, skippedOld = 0, unknown = 0;
-  list.forEach(function (r) {
-    if (STORES.indexOf(r.store) === -1) {
-      db.unknown.push(r.store + "(" + r.time + ")");
-      unknown++;
-      return;
-    }
-    var old = db.reports[r.store];
-    if (old && old.ts > r.ts) { skippedOld++; return; }
-    db.reports[r.store] = r;
-    added++;
-  });
-  save();
-  document.getElementById("inbox").value = "";
-  render();
-  var msg = "已更新 " + added + " 間";
-  if (skippedOld) msg += "・略過 " + skippedOld + " 則較舊回報";
-  if (unknown) msg += "・" + unknown + " 則門市名稱無法辨識";
-  toast(msg);
 }
 
 function statusOf(r) {
@@ -406,7 +341,7 @@ function pull(manual) {
       if (manual) toast(n ? "已更新 " + n + " 間門市" : "沒有新的回報");
     })
     .catch(function () {
-      setCloud("🔴 同步失敗,稍後自動重試(也可用下方貼訊息的備用方式)");
+      setCloud("🔴 同步失敗,稍後自動重試");
     })
     .then(function () { pulling = false; });
 }
@@ -422,7 +357,7 @@ if (SYNC_B) {
   pull(false);
   setInterval(function () { pull(false); }, 25000);
 } else {
-  setCloud("⚪ 手動模式:用下方貼訊息彙整。要自動同步,請用 setup 頁產生的「彙整版連結」開啟本頁");
+  setCloud("⚪ 未啟用同步:請改用 setup 頁產生的「彙整版連結」開啟本頁");
 }
 </script>
 </body>
